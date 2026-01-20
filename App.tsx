@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Sparkles, 
@@ -37,6 +36,7 @@ export default function App() {
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
   useEffect(() => {
@@ -75,6 +75,7 @@ export default function App() {
     if (!prompt.trim()) return;
 
     try {
+      setErrorMsg(null);
       setStep(GenerationStep.GENERATING_CODE);
       setProgress(10);
       setSiteData(null);
@@ -112,9 +113,12 @@ export default function App() {
       
       setStep(GenerationStep.COMPLETED);
       setProgress(100);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      const detailedError = error.message || "An unexpected error occurred during generation.";
+      setErrorMsg(detailedError.includes("API key not valid") ? "The provided API key is invalid. Please check your .env file." : detailedError);
       setStep(GenerationStep.ERROR);
+      setProgress(0);
     }
   };
 
@@ -122,6 +126,7 @@ export default function App() {
     if (!editPrompt.trim() || !siteData) return;
 
     try {
+      setErrorMsg(null);
       setStep(GenerationStep.GENERATING_CODE);
       setProgress(20);
 
@@ -148,9 +153,12 @@ export default function App() {
       setEditPrompt('');
       setStep(GenerationStep.COMPLETED);
       setProgress(100);
-    } catch (error) {
+    } catch (error: any) {
       console.error(error);
+      const detailedError = error.message || "An unexpected error occurred during modification.";
+      setErrorMsg(detailedError.includes("API key not valid") ? "The provided API key is invalid. Please check your .env file." : detailedError);
       setStep(GenerationStep.ERROR);
+      setProgress(0);
     }
   };
 
@@ -165,6 +173,7 @@ export default function App() {
     setProjectId(proj.id);
     setStep(GenerationStep.COMPLETED);
     setShowHistory(false);
+    setErrorMsg(null);
   };
 
   const downloadProject = () => {
@@ -304,7 +313,7 @@ export default function App() {
             ) : (
               <div className="space-y-6">
                 <button 
-                  onClick={() => { setSiteData(null); setStep(GenerationStep.IDLE); setProjectId(undefined); }}
+                  onClick={() => { setSiteData(null); setStep(GenerationStep.IDLE); setProjectId(undefined); setErrorMsg(null); }}
                   className="w-full py-2 px-4 border-2 border-slate-100 rounded-xl text-xs font-black uppercase tracking-widest text-slate-500 hover:border-indigo-100 hover:text-indigo-600 flex items-center justify-center gap-2 transition-all"
                 >
                   <ArrowLeft className="w-4 h-4" /> Start New Build
@@ -364,7 +373,7 @@ export default function App() {
                 <AlertCircle className="w-6 h-6 flex-shrink-0" />
                 <div className="text-xs">
                   <p className="font-black uppercase mb-1">System Fault</p>
-                  <p className="font-medium opacity-80 leading-relaxed">The AI encountered a limit or connection issue. Please retry.</p>
+                  <p className="font-medium opacity-80 leading-relaxed">{errorMsg || "The AI encountered a limit or connection issue. Please retry."}</p>
                 </div>
               </div>
             )}
