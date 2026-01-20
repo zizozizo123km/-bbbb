@@ -18,10 +18,12 @@ import {
   History,
   Save,
   Trash2,
-  Clock
+  Clock,
+  ExternalLink,
+  Github
 } from 'lucide-react';
 import { generateSiteStructure, modifySiteStructure, generateImage } from './services/gemini';
-import { saveProject, listenToProjects, SavedProject } from './services/firebase';
+import { saveProject, listenToProjects, SavedProject, deleteProject } from './services/firebase';
 import { GenerationStep, GeneratedSite } from './types';
 
 export default function App() {
@@ -50,6 +52,22 @@ export default function App() {
       setProjectId(id);
     } catch (e) {
       console.error("Firebase save error", e);
+    }
+  };
+
+  const handleDelete = async (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (confirm('Are you sure you want to delete this project?')) {
+      try {
+        await deleteProject(id);
+        if (projectId === id) {
+          setSiteData(null);
+          setProjectId(undefined);
+          setStep(GenerationStep.IDLE);
+        }
+      } catch (e) {
+        console.error("Delete error", e);
+      }
     }
   };
 
@@ -162,50 +180,51 @@ export default function App() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col bg-slate-50">
+    <div className="min-h-screen flex flex-col bg-slate-50 font-sans selection:bg-indigo-100 selection:text-indigo-900">
       <header className="h-16 border-b bg-white flex items-center justify-between px-6 sticky top-0 z-50">
         <div className="flex items-center gap-2">
-          <div className="bg-indigo-600 p-2 rounded-lg">
+          <div className="bg-indigo-600 p-2 rounded-lg shadow-sm">
             <Sparkles className="w-5 h-5 text-white" />
           </div>
-          <h1 className="font-bold text-xl tracking-tight text-slate-800">Gemini<span className="text-indigo-600">Site</span></h1>
+          <div className="flex flex-col">
+            <h1 className="font-bold text-lg tracking-tight text-slate-900 leading-none">Gemini<span className="text-indigo-600">Builder</span></h1>
+            <span className="text-[10px] text-slate-400 font-medium uppercase tracking-wider">Production V1</span>
+          </div>
         </div>
 
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
           <button 
             onClick={() => setShowHistory(!showHistory)}
-            className={`p-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all ${showHistory ? 'bg-indigo-50 text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-            title="Project History"
+            className={`px-3 py-2 rounded-lg text-sm font-semibold flex items-center gap-2 transition-all ${showHistory ? 'bg-indigo-50 text-indigo-600 shadow-inner' : 'text-slate-600 hover:bg-slate-50'}`}
           >
-            <History className="w-5 h-5" />
-            <span className="hidden md:inline">History</span>
+            <History className="w-4 h-4" />
+            <span className="hidden sm:inline">Projects</span>
           </button>
 
           {siteData && (
-            <>
-              <div className="h-6 w-px bg-slate-200 hidden md:block"></div>
-              <div className="flex bg-slate-100 p-1 rounded-lg">
-                <button 
-                  onClick={() => setViewMode('preview')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'preview' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  <Eye className="w-4 h-4" /> Preview
-                </button>
-                <button 
-                  onClick={() => setViewMode('code')}
-                  className={`px-3 py-1.5 rounded-md text-sm font-medium flex items-center gap-2 transition-all ${viewMode === 'code' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-700'}`}
-                >
-                  <CodeIcon className="w-4 h-4" /> Code
-                </button>
-              </div>
-              
+            <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
               <button 
-                onClick={downloadProject}
-                className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm font-medium flex items-center gap-2 transition-all"
+                onClick={() => setViewMode('preview')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'preview' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
               >
-                <Download className="w-4 h-4" /> Export
+                Preview
               </button>
-            </>
+              <button 
+                onClick={() => setViewMode('code')}
+                className={`px-4 py-1.5 rounded-lg text-sm font-bold transition-all ${viewMode === 'code' ? 'bg-white shadow-sm text-indigo-600' : 'text-slate-500 hover:text-slate-800'}`}
+              >
+                Code
+              </button>
+            </div>
+          )}
+          
+          {siteData && (
+            <button 
+              onClick={downloadProject}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white px-5 py-2 rounded-xl text-sm font-bold shadow-lg shadow-indigo-100 flex items-center gap-2 transition-all active:scale-95"
+            >
+              <Download className="w-4 h-4" /> Export
+            </button>
           )}
         </div>
       </header>
@@ -215,32 +234,45 @@ export default function App() {
         {showHistory && (
           <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-sm z-40 transition-all flex justify-start">
             <aside className="w-full max-w-sm bg-white h-full shadow-2xl flex flex-col animate-in slide-in-from-left duration-300">
-              <div className="p-6 border-b flex items-center justify-between">
-                <h2 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                  <Clock className="w-5 h-5 text-indigo-600" /> Saved Projects
+              <div className="p-6 border-b flex items-center justify-between bg-slate-50/50">
+                <h2 className="font-extrabold text-xl text-slate-900 flex items-center gap-3">
+                  <div className="p-1.5 bg-indigo-100 rounded-lg"><Clock className="w-5 h-5 text-indigo-600" /></div>
+                  History
                 </h2>
-                <button onClick={() => setShowHistory(false)} className="text-slate-400 hover:text-slate-600 p-1">
+                <button onClick={() => setShowHistory(false)} className="bg-white border shadow-sm rounded-full p-2 text-slate-400 hover:text-indigo-600 hover:border-indigo-200 transition-all">
                   <ArrowLeft className="w-5 h-5" />
                 </button>
               </div>
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
                 {projects.length === 0 ? (
-                  <div className="text-center py-20">
-                    <History className="w-12 h-12 text-slate-200 mx-auto mb-4" />
-                    <p className="text-slate-500 text-sm">No saved projects yet.</p>
+                  <div className="text-center py-24 flex flex-col items-center">
+                    <div className="bg-slate-50 p-6 rounded-full mb-4">
+                      <History className="w-12 h-12 text-slate-300" />
+                    </div>
+                    <p className="text-slate-900 font-bold mb-1">No Projects Found</p>
+                    <p className="text-slate-400 text-xs px-12">Start by creating your first website with Gemini AI.</p>
                   </div>
                 ) : (
                   projects.map((proj) => (
-                    <button 
+                    <div 
                       key={proj.id}
                       onClick={() => loadProject(proj)}
-                      className={`w-full text-left p-4 rounded-xl border transition-all hover:border-indigo-300 hover:shadow-md ${projectId === proj.id ? 'border-indigo-500 bg-indigo-50/50' : 'border-slate-100 bg-white'}`}
+                      className={`group relative w-full text-left p-4 rounded-2xl border-2 cursor-pointer transition-all hover:shadow-xl ${projectId === proj.id ? 'border-indigo-600 bg-indigo-50/30' : 'border-slate-100 bg-white hover:border-indigo-200'}`}
                     >
-                      <h4 className="font-semibold text-slate-800 text-sm mb-1 truncate">{proj.name}</h4>
-                      <p className="text-[10px] text-slate-400 flex items-center gap-1">
-                        <Clock className="w-3 h-3" /> {new Date(proj.timestamp).toLocaleString()}
-                      </p>
-                    </button>
+                      <div className="flex justify-between items-start mb-2">
+                         <h4 className="font-bold text-slate-900 text-sm leading-snug line-clamp-2 w-[85%]">{proj.name}</h4>
+                         <button 
+                           onClick={(e) => handleDelete(e, proj.id)}
+                           className="opacity-0 group-hover:opacity-100 p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-all"
+                         >
+                           <Trash2 className="w-4 h-4" />
+                         </button>
+                      </div>
+                      <div className="flex items-center gap-2 text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                        <Clock className="w-3 h-3" />
+                        {new Date(proj.timestamp).toLocaleDateString()}
+                      </div>
+                    </div>
                   ))
                 )}
               </div>
@@ -248,124 +280,154 @@ export default function App() {
           </div>
         )}
 
-        <aside className="w-full md:w-80 border-r bg-white p-6 overflow-y-auto flex-shrink-0">
-          <div className="space-y-6">
+        <aside className="w-full md:w-[340px] border-r bg-white p-6 overflow-y-auto flex-shrink-0 z-10">
+          <div className="space-y-8">
             {!siteData || step === GenerationStep.IDLE ? (
-              <div>
-                <label className="block text-sm font-semibold text-slate-700 mb-2">Build a new website</label>
-                <textarea 
-                  value={prompt}
-                  onChange={(e) => setPrompt(e.target.value)}
-                  placeholder="e.g. A modern pizza restaurant with a menu, booking form and dark theme..."
-                  className="w-full h-32 p-3 border rounded-xl bg-slate-50 text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all"
-                />
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-xs font-black text-slate-400 uppercase tracking-widest mb-3">Project Concept</label>
+                  <textarea 
+                    value={prompt}
+                    onChange={(e) => setPrompt(e.target.value)}
+                    placeholder="Describe your vision (e.g. A sleek portfolio for a UI designer with glassmorphism...)"
+                    className="w-full h-40 p-4 border-2 border-slate-100 rounded-2xl bg-slate-50/50 text-sm font-medium focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none resize-none transition-all placeholder:text-slate-300"
+                  />
+                </div>
                 <button 
                   onClick={handleGenerate}
                   disabled={!prompt.trim() || (step !== GenerationStep.IDLE && step !== GenerationStep.COMPLETED)}
-                  className="w-full mt-4 bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 text-white py-3 rounded-xl font-semibold flex items-center justify-center gap-2 transition-all shadow-lg"
+                  className="w-full bg-slate-900 hover:bg-indigo-600 disabled:bg-slate-100 disabled:text-slate-300 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest flex items-center justify-center gap-3 transition-all shadow-xl shadow-slate-200 hover:shadow-indigo-200 active:scale-95"
                 >
-                  <Wand2 className="w-5 h-5" /> Generate
+                  <Wand2 className="w-5 h-5" /> Generate Magic
                 </button>
               </div>
             ) : (
-              <div className="space-y-4">
+              <div className="space-y-6">
                 <button 
                   onClick={() => { setSiteData(null); setStep(GenerationStep.IDLE); setProjectId(undefined); }}
-                  className="text-xs text-indigo-600 font-semibold flex items-center gap-1 hover:underline mb-2"
+                  className="w-full py-2 px-4 border-2 border-slate-100 rounded-xl text-xs font-black uppercase tracking-widest text-slate-500 hover:border-indigo-100 hover:text-indigo-600 flex items-center justify-center gap-2 transition-all"
                 >
-                  <ArrowLeft className="w-3 h-3" /> New Website
+                  <ArrowLeft className="w-4 h-4" /> Start New Build
                 </button>
                 
-                <div className="bg-indigo-50 p-4 rounded-xl border border-indigo-100">
-                  <h3 className="text-sm font-bold text-indigo-900 flex items-center gap-2 mb-1">
-                    <Sparkles className="w-4 h-4" /> Refine & Edit
+                <div className="bg-indigo-600 p-6 rounded-[2rem] shadow-2xl shadow-indigo-200">
+                  <h3 className="text-white font-black text-sm flex items-center gap-2 mb-4 uppercase tracking-widest">
+                    <Sparkles className="w-5 h-5" /> Refinement Lab
                   </h3>
                   <textarea 
                     value={editPrompt}
                     onChange={(e) => setEditPrompt(e.target.value)}
-                    placeholder="e.g. Add a contact form, make the hero section blue..."
-                    className="w-full h-24 p-2 border rounded-lg bg-white text-sm focus:ring-2 focus:ring-indigo-500 outline-none resize-none transition-all"
+                    placeholder="Tell AI to change anything..."
+                    className="w-full h-32 p-4 rounded-2xl bg-white/10 text-white border-2 border-white/20 text-sm font-medium focus:ring-4 focus:ring-white/20 focus:border-white outline-none resize-none transition-all placeholder:text-white/40"
                   />
                   <button 
                     onClick={handleModify}
                     disabled={!editPrompt.trim() || (step !== GenerationStep.COMPLETED && step !== GenerationStep.ERROR)}
-                    className="w-full mt-3 bg-indigo-600 hover:bg-indigo-700 disabled:bg-slate-300 text-white py-2 rounded-lg text-sm font-semibold flex items-center justify-center gap-2 transition-all"
+                    className="w-full mt-4 bg-white text-indigo-600 py-3.5 rounded-2xl font-black text-xs uppercase tracking-widest flex items-center justify-center gap-2 transition-all shadow-lg active:scale-95"
                   >
                     {step === GenerationStep.GENERATING_CODE || step === GenerationStep.GENERATING_IMAGES || step === GenerationStep.FINALIZING ? (
-                       <div className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
-                    ) : <Send className="w-3.5 h-3.5" />}
-                    Apply Changes
+                       <div className="w-4 h-4 border-2 border-indigo-600/30 border-t-indigo-600 rounded-full animate-spin"></div>
+                    ) : <Send className="w-4 h-4" />}
+                    Update AI Site
                   </button>
                 </div>
 
-                <div className="flex items-center justify-between text-[10px] text-slate-400 px-1 pt-2">
-                   <span className="flex items-center gap-1"><Save className="w-3 h-3" /> Auto-saved to Firebase</span>
-                   {projectId && <span className="opacity-60">ID: {projectId.slice(0, 8)}...</span>}
+                <div className="bg-slate-50 border border-slate-100 p-4 rounded-2xl flex items-center justify-between">
+                   <div className="flex items-center gap-2">
+                     <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></div>
+                     <span className="text-[10px] font-black text-slate-400 uppercase tracking-tighter">Live Synced</span>
+                   </div>
+                   {projectId && <span className="text-[10px] font-mono text-slate-300">#{projectId.slice(0, 8)}</span>}
                 </div>
               </div>
             )}
 
             {step !== GenerationStep.IDLE && (
-              <div className="space-y-4 pt-4 border-t">
-                <div className="flex justify-between text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <span>{step === GenerationStep.COMPLETED ? 'Status: Ready' : 'Processing'}</span>
-                  <span>{progress}%</span>
+              <div className="space-y-4 pt-6 border-t border-slate-100">
+                <div className="flex justify-between items-end">
+                  <span className="text-[10px] font-black text-slate-400 uppercase tracking-widest">{step === GenerationStep.COMPLETED ? 'System Ready' : 'AI Processing'}</span>
+                  <span className="text-sm font-black text-indigo-600">{progress}%</span>
                 </div>
-                <div className="w-full h-2 bg-slate-100 rounded-full overflow-hidden">
-                  <div className={`h-full transition-all duration-500 ${step === GenerationStep.ERROR ? 'bg-red-500' : 'bg-indigo-500'}`} style={{ width: `${progress}%` }} />
+                <div className="w-full h-3 bg-slate-100 rounded-full overflow-hidden p-0.5">
+                  <div className={`h-full rounded-full transition-all duration-1000 ${step === GenerationStep.ERROR ? 'bg-red-500' : 'bg-indigo-600 shadow-[0_0_15px_rgba(79,70,229,0.5)]'}`} style={{ width: `${progress}%` }} />
                 </div>
-                <div className="space-y-2">
-                  <StatusStep label="Analyzing Request" active={step === GenerationStep.GENERATING_CODE} done={progress > 30} />
-                  <StatusStep label="Coding" active={step === GenerationStep.GENERATING_CODE} done={progress > 50} />
-                  <StatusStep label="Syncing Cloud" active={step === GenerationStep.FINALIZING} done={progress === 100} />
+                <div className="grid grid-cols-1 gap-2">
+                  <StatusStep label="Neural Analysis" active={step === GenerationStep.GENERATING_CODE} done={progress > 30} />
+                  <StatusStep label="Structure Generation" active={step === GenerationStep.GENERATING_CODE} done={progress > 60} />
+                  <StatusStep label="Visual Rendering" active={step === GenerationStep.GENERATING_IMAGES} done={progress > 90} />
+                </div>
+              </div>
+            )}
+
+            {step === GenerationStep.ERROR && (
+              <div className="bg-red-50 p-5 rounded-2xl border-2 border-red-100 flex gap-4 text-red-700 animate-in fade-in zoom-in">
+                <AlertCircle className="w-6 h-6 flex-shrink-0" />
+                <div className="text-xs">
+                  <p className="font-black uppercase mb-1">System Fault</p>
+                  <p className="font-medium opacity-80 leading-relaxed">The AI encountered a limit or connection issue. Please retry.</p>
                 </div>
               </div>
             )}
           </div>
         </aside>
 
-        <section className="flex-1 bg-slate-100 relative overflow-hidden flex flex-col">
+        <section className="flex-1 bg-slate-50 relative overflow-hidden flex flex-col">
           {siteData ? (
             <>
               {viewMode === 'preview' && (
-                <div className="h-12 border-b bg-white/80 backdrop-blur-sm flex items-center justify-center gap-4 z-10 shadow-sm">
-                  <button onClick={() => setDevice('desktop')} className={`p-1.5 rounded-md transition-all ${device === 'desktop' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                    <Monitor className="w-5 h-5" />
-                  </button>
-                  <button onClick={() => setDevice('tablet')} className={`p-1.5 rounded-md transition-all ${device === 'tablet' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                    <Tablet className="w-5 h-5" />
-                  </button>
-                  <button onClick={() => setDevice('mobile')} className={`p-1.5 rounded-md transition-all ${device === 'mobile' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-400 hover:text-slate-600'}`}>
-                    <Smartphone className="w-5 h-5" />
-                  </button>
+                <div className="h-14 border-b bg-white/60 backdrop-blur-md flex items-center justify-center gap-6 z-10 shadow-sm">
+                  <div className="flex bg-slate-100/80 p-1 rounded-xl">
+                    <button onClick={() => setDevice('desktop')} className={`p-2 rounded-lg transition-all ${device === 'desktop' ? 'bg-white shadow-md text-indigo-600' : 'text-slate-400 hover:text-slate-900'}`}>
+                      <Monitor className="w-5 h-5" />
+                    </button>
+                    <button onClick={() => setDevice('tablet')} className={`p-2 rounded-lg transition-all ${device === 'tablet' ? 'bg-white shadow-md text-indigo-600' : 'text-slate-400 hover:text-slate-900'}`}>
+                      <Tablet className="w-5 h-5" />
+                    </button>
+                    <button onClick={() => setDevice('mobile')} className={`p-2 rounded-lg transition-all ${device === 'mobile' ? 'bg-white shadow-md text-indigo-600' : 'text-slate-400 hover:text-slate-900'}`}>
+                      <Smartphone className="w-5 h-5" />
+                    </button>
+                  </div>
                 </div>
               )}
 
-              <div className="flex-1 overflow-auto p-4 md:p-8 flex justify-center items-start">
+              <div className="flex-1 overflow-auto p-4 md:p-12 flex justify-center items-start">
                 {viewMode === 'preview' ? (
                   <div 
-                    className={`bg-white shadow-2xl rounded-sm transition-all duration-500 overflow-hidden ${
+                    className={`bg-white shadow-[0_40px_100px_rgba(0,0,0,0.1)] rounded-xl transition-all duration-700 overflow-hidden relative group ${
                       device === 'desktop' ? 'w-full max-w-6xl h-full' : 
                       device === 'tablet' ? 'w-[768px] h-full' : 
                       'w-[375px] h-[667px]'
                     }`}
                   >
-                    <iframe ref={iframeRef} title="Preview" className="w-full h-full border-none" srcDoc={siteData.html} />
+                    <div className="h-6 bg-slate-50 border-b flex items-center px-4 gap-1.5">
+                       <div className="w-2 h-2 rounded-full bg-slate-200"></div>
+                       <div className="w-2 h-2 rounded-full bg-slate-200"></div>
+                       <div className="w-2 h-2 rounded-full bg-slate-200"></div>
+                    </div>
+                    <iframe ref={iframeRef} title="Preview" className="w-full h-[calc(100%-24px)] border-none" srcDoc={siteData.html} />
                   </div>
                 ) : (
-                  <div className="w-full max-w-6xl h-full bg-[#1e1e1e] rounded-xl overflow-hidden shadow-2xl font-mono text-sm">
-                    <div className="h-10 bg-[#2d2d2d] flex items-center px-4 border-b border-[#3d3d3d] justify-between">
-                      <span className="text-slate-400 flex items-center gap-2 text-xs font-semibold">
-                        <span className="w-3 h-3 rounded-full bg-red-500/30"></span>
-                        <span className="w-3 h-3 rounded-full bg-yellow-500/30"></span>
-                        <span className="w-3 h-3 rounded-full bg-green-500/30"></span>
-                        <span className="ml-2 uppercase tracking-widest opacity-50">Editor</span>
-                      </span>
-                      <button onClick={() => navigator.clipboard.writeText(siteData.html)} className="text-[10px] bg-white/5 hover:bg-white/10 text-white/50 px-2 py-1 rounded transition-all">Copy Code</button>
+                  <div className="w-full max-w-6xl h-full bg-[#0d0d0d] rounded-[2rem] overflow-hidden shadow-2xl font-mono text-sm border-8 border-slate-900">
+                    <div className="h-12 bg-[#1a1a1a] flex items-center px-6 border-b border-white/5 justify-between">
+                      <div className="flex items-center gap-3">
+                        <div className="w-3 h-3 rounded-full bg-red-500/50"></div>
+                        <div className="w-3 h-3 rounded-full bg-yellow-500/50"></div>
+                        <div className="w-3 h-3 rounded-full bg-green-500/50"></div>
+                        <span className="text-[10px] text-white/40 font-black uppercase tracking-widest ml-4">Source Output</span>
+                      </div>
+                      <button 
+                        onClick={() => {
+                          navigator.clipboard.writeText(siteData.html);
+                          alert('Copied to clipboard!');
+                        }} 
+                        className="text-[10px] font-black uppercase tracking-widest bg-white/10 hover:bg-indigo-600 text-white px-4 py-2 rounded-full transition-all active:scale-95"
+                      >
+                        Copy All
+                      </button>
                     </div>
                     <textarea 
                       readOnly
-                      className="w-full h-[calc(100%-40px)] bg-transparent text-indigo-300/80 p-6 outline-none resize-none leading-relaxed"
+                      className="w-full h-[calc(100%-48px)] bg-transparent text-indigo-300/60 p-8 outline-none resize-none leading-relaxed selection:bg-indigo-500/30"
                       value={siteData.html}
                     />
                   </div>
@@ -374,22 +436,36 @@ export default function App() {
             </>
           ) : (
             <div className="flex-1 flex flex-col items-center justify-center text-center p-8">
-              <div className="w-24 h-24 bg-white rounded-3xl shadow-xl flex items-center justify-center mb-6 animate-bounce">
-                <Layout className="w-10 h-10 text-indigo-500" />
+              <div className="relative mb-12">
+                 <div className="absolute inset-0 bg-indigo-500/20 blur-[80px] rounded-full"></div>
+                 <div className="w-32 h-32 bg-white rounded-[2.5rem] shadow-2xl flex items-center justify-center relative z-10 animate-bounce transition-all duration-[2000ms]">
+                   <Layout className="w-14 h-14 text-indigo-600" />
+                 </div>
+                 <div className="absolute -top-4 -right-4 bg-indigo-600 p-3 rounded-2xl shadow-xl z-20 animate-pulse">
+                   <Sparkles className="w-6 h-6 text-white" />
+                 </div>
               </div>
-              <h2 className="text-2xl font-bold text-slate-800 mb-2">Cloud-Synced AI Design</h2>
-              <p className="text-slate-500 max-w-md">
-                Every modification you make is saved instantly. Access your history or build a new site using high-end LLM capabilities.
+              <h2 className="text-4xl font-black text-slate-900 mb-4 tracking-tight">Future-Ready <br/><span className="text-indigo-600">AI Web Architect</span></h2>
+              <p className="text-slate-500 max-w-md text-sm font-medium leading-relaxed mb-12">
+                Deploy pixel-perfect websites in seconds. From concepts to functional code, managed in the cloud and ready for Vercel.
               </p>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-12 max-w-xl text-left">
-                 <button onClick={() => setPrompt("A premium dark-themed landing page for a futuristic AI startup named 'NeuroLink'. Features interactive hero, features grid, and glassmorphism.")} className="p-4 bg-white border border-slate-200 rounded-xl text-left hover:border-indigo-300 hover:shadow-md transition-all group">
-                    <h3 className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors mb-1 text-sm">NeuroLink Startup</h3>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">Modern, dark, glassmorphic UI for high-tech SaaS.</p>
-                 </button>
-                 <button onClick={() => setPrompt("An elegant, high-end real estate website for luxury villas in Dubai. White & Gold theme, property slider, and agent booking.")} className="p-4 bg-white border border-slate-200 rounded-xl text-left hover:border-indigo-300 hover:shadow-md transition-all group">
-                    <h3 className="font-bold text-slate-800 group-hover:text-indigo-600 transition-colors mb-1 text-sm">Luxury Real Estate</h3>
-                    <p className="text-[11px] text-slate-500 leading-relaxed">Elegant white/gold aesthetic for high-end properties.</p>
-                 </button>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl w-full">
+                 <ExampleButton 
+                    title="Futuristic SaaS" 
+                    desc="Dark theme with glass cards and neon gradients."
+                    onClick={() => setPrompt("A premium dark SaaS landing page for an AI agent platform named 'Quantum'. Neon blue accents, glassmorphism features, and a pricing table.")}
+                 />
+                 <ExampleButton 
+                    title="Portfolio Pro" 
+                    desc="Minimal, high-contrast, typographic masterpiece."
+                    onClick={() => setPrompt("A minimal, typographic portfolio for a creative director. Black and white theme, large headings, and a smooth scrolling gallery.")}
+                 />
+              </div>
+
+              <div className="mt-12 flex items-center gap-6 opacity-30 grayscale pointer-events-none">
+                 <div className="flex items-center gap-2 font-black text-slate-400 tracking-tighter text-xl italic"><Github className="w-6 h-6"/> Firebase</div>
+                 <div className="flex items-center gap-2 font-black text-slate-400 tracking-tighter text-xl italic">Vercel Ready</div>
               </div>
             </div>
           )}
@@ -400,14 +476,29 @@ export default function App() {
 }
 
 const StatusStep = ({ label, active, done }: { label: string, active: boolean, done: boolean }) => (
-  <div className="flex items-center gap-3">
-    <div className={`w-4 h-4 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
+  <div className="flex items-center gap-3 bg-slate-50/50 p-2 rounded-xl transition-all">
+    <div className={`w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0 transition-all ${
       done ? 'bg-green-100 text-green-600' : 
       active ? 'bg-indigo-100 text-indigo-600 animate-pulse' : 
-      'bg-slate-100 text-slate-400'
+      'bg-white border-2 border-slate-100 text-slate-200'
     }`}>
-      {done ? <CheckCircle2 className="w-3 h-3" /> : <div className={`w-1 h-1 rounded-full ${active ? 'bg-indigo-500' : 'bg-slate-400'}`} />}
+      {done ? <CheckCircle2 className="w-3.5 h-3.5" /> : <div className={`w-1.5 h-1.5 rounded-full ${active ? 'bg-indigo-500' : 'bg-slate-200'}`} />}
     </div>
-    <span className={`text-xs ${done ? 'text-slate-600 font-medium' : active ? 'text-indigo-600 font-semibold' : 'text-slate-400'}`}>{label}</span>
+    <span className={`text-[11px] font-black uppercase tracking-widest ${done ? 'text-slate-500' : active ? 'text-indigo-600' : 'text-slate-300'}`}>{label}</span>
   </div>
+);
+
+const ExampleButton = ({ title, desc, onClick }: { title: string, desc: string, onClick: () => void }) => (
+  <button 
+    onClick={onClick}
+    className="p-6 bg-white border-2 border-slate-100 rounded-3xl text-left hover:border-indigo-600 hover:shadow-2xl hover:shadow-indigo-100 transition-all group active:scale-95"
+  >
+    <div className="flex items-center gap-2 mb-2">
+       <div className="w-8 h-8 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-600 group-hover:bg-indigo-600 group-hover:text-white transition-all">
+          <ExternalLink className="w-4 h-4" />
+       </div>
+       <h3 className="font-black text-slate-900 group-hover:text-indigo-600 transition-colors text-sm uppercase tracking-tight">{title}</h3>
+    </div>
+    <p className="text-[11px] font-medium text-slate-400 leading-relaxed group-hover:text-slate-600 transition-colors">{desc}</p>
+  </button>
 );

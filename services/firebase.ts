@@ -1,6 +1,6 @@
 
 import { initializeApp } from "firebase/app";
-import { getDatabase, ref, set, push, onValue, get } from "firebase/database";
+import { getDatabase, ref, set, push, onValue, get, remove } from "firebase/database";
 import { GeneratedSite } from "../types";
 
 const firebaseConfig = {
@@ -42,6 +42,11 @@ export const saveProject = async (name: string, html: string, existingId?: strin
 
   await set(ref(db, `projects/${id}`), projectData);
   return id;
+};
+
+export const deleteProject = async (id: string): Promise<void> => {
+  const projectRef = ref(db, `projects/${id}`);
+  await remove(projectRef);
 };
 
 export const getProjects = async (): Promise<SavedProject[]> => {
