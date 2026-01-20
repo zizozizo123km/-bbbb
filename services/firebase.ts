@@ -1,7 +1,5 @@
-
 import { initializeApp } from "firebase/app";
 import { getDatabase, ref, set, push, onValue, get, remove } from "firebase/database";
-import { GeneratedSite } from "../types";
 
 const firebaseConfig = {
   apiKey: "AIzaSyAmPFwV1ld4H6CWukHtEoKPg9E2tHWkyxE",
@@ -14,6 +12,7 @@ const firebaseConfig = {
   measurementId: "G-9PLRDRTYND"
 };
 
+// Initialize Firebase using modular SDK
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 

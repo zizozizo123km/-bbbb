@@ -1,7 +1,8 @@
+
 {
-  "name": "gemini-ai-website-builder",
+  "name": "gemini-ai-builder",
   "private": true,
-  "version": "0.0.0",
+  "version": "1.0.0",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,16 +10,14 @@
     "preview": "vite preview"
   },
   "dependencies": {
-    "react": "^19.2.3",
-    "react-dom": "^19.2.3",
-    "@google/genai": "1.3.0",
-    "lucide-react": "0.460.0",
-    "firebase": "^12.8.0"
+    "@google/genai": "^1.3.0",
+    "firebase": "^10.8.0",
+    "lucide-react": "^0.460.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
-    "@types/node": "^22.14.0",
-    "@vitejs/plugin-react": "^5.0.0",
-    "typescript": "~5.8.2",
-    "vite": "^6.2.0"
+    "@vitejs/plugin-react": "^4.3.4",
+    "vite": "^6.0.5"
   }
 }

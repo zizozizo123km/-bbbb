@@ -1,13 +1,15 @@
-
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { SiteGenerationResult } from "../types";
 
-const API_KEY = process.env.API_KEY || "";
-
+/**
+ * Generates the initial website structure and content based on a text prompt.
+ * Uses gemini-3-flash-preview for basic text and layout generation.
+ */
 export const generateSiteStructure = async (prompt: string): Promise<SiteGenerationResult> => {
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  // Always use process.env.API_KEY directly in the constructor.
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const response = await ai.models.generateContent({
+  const response: GenerateContentResponse = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
     contents: `Create a professional, high-quality website based on this description: "${prompt}".
     The website must use Tailwind CSS for styling.
@@ -29,19 +31,25 @@ export const generateSiteStructure = async (prompt: string): Promise<SiteGenerat
             description: "A list of 3-4 descriptive image prompts for sections like hero, gallery, or team."
           }
         },
-        required: ["code", "imagePrompts"]
+        required: ["code", "imagePrompts"],
+        propertyOrdering: ["code", "imagePrompts"]
       }
     }
   });
 
+  // response.text is a property, not a method.
   const data = JSON.parse(response.text || "{}");
   return data as SiteGenerationResult;
 };
 
+/**
+ * Modifies existing website code based on user instructions.
+ * Uses gemini-3-pro-preview for complex reasoning and coding tasks.
+ */
 export const modifySiteStructure = async (currentCode: string, instruction: string): Promise<SiteGenerationResult> => {
-  const ai = new GoogleGenAI({ apiKey: API_KEY });
+  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
   
-  const response = await ai.models.generateContent({
+  const response: GenerateContentResponse = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
     contents: `You are an expert web developer. Modify the following website code according to this instruction: "${instruction}".
     
@@ -70,19 +78,25 @@ export const modifySiteStructure = async (currentCode: string, instruction: stri
             description: "Any NEW descriptive image prompts needed for added sections. Return an empty array if no new images are needed."
           }
         },
-        required: ["code", "imagePrompts"]
+        required: ["code", "imagePrompts"],
+        propertyOrdering: ["code", "imagePrompts"]
       }
     }
   });
 
+  // response.text is a property, not a method.
   const data = JSON.parse(response.text || "{}");
   return data as SiteGenerationResult;
 };
 
+/**
+ * Generates an image based on a prompt.
+ * Uses gemini-2.5-flash-image for standard image generation.
+ */
 export const generateImage = async (prompt: string): Promise<string | null> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: API_KEY });
-    const response = await ai.models.generateContent({
+    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
         parts: [{ text: prompt }]
@@ -94,7 +108,9 @@ export const generateImage = async (prompt: string): Promise<string | null> => {
       }
     });
 
-    for (const part of response.candidates?.[0]?.content?.parts || []) {
+    // Iterate through candidates and parts to find the inline image data.
+    const parts = response.candidates?.[0]?.content?.parts || [];
+    for (const part of parts) {
       if (part.inlineData) {
         return `data:image/png;base64,${part.inlineData.data}`;
       }
@@ -102,6 +118,7 @@ export const generateImage = async (prompt: string): Promise<string | null> => {
     return null;
   } catch (error) {
     console.error("Image generation failed:", error);
+    // Fallback to placeholder if API fails
     return `https://picsum.photos/seed/${Math.random()}/1200/600`;
   }
 };
