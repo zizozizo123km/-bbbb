@@ -19,7 +19,10 @@ import {
   Trash2,
   Clock,
   ExternalLink,
-  Github
+  Github,
+  Settings,
+  X,
+  Key
 } from 'lucide-react';
 import { generateSiteStructure, modifySiteStructure, generateImage } from './services/gemini';
 import { saveProject, listenToProjects, SavedProject, deleteProject } from './services/firebase';
@@ -36,6 +39,8 @@ export default function App() {
   const [projectId, setProjectId] = useState<string | undefined>(undefined);
   const [projects, setProjects] = useState<SavedProject[]>([]);
   const [showHistory, setShowHistory] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
+  const [userApiKey, setUserApiKey] = useState(localStorage.getItem('gemini_api_key') || '');
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
 
@@ -45,6 +50,12 @@ export default function App() {
     });
     return () => unsubscribe();
   }, []);
+
+  const saveApiKey = (key: string) => {
+    setUserApiKey(key);
+    localStorage.setItem('gemini_api_key', key);
+    setShowSettings(false);
+  };
 
   const persistToFirebase = async (html: string, name: string, currentId?: string) => {
     try {
@@ -81,12 +92,12 @@ export default function App() {
       setSiteData(null);
       setProjectId(undefined);
 
-      const { code, imagePrompts } = await generateSiteStructure(prompt);
+      const { code, imagePrompts } = await generateSiteStructure(prompt, userApiKey);
       setProgress(40);
 
       setStep(GenerationStep.GENERATING_IMAGES);
       const generatedImages: string[] = [];
-      const imagePromises = imagePrompts.map(p => generateImage(p));
+      const imagePromises = imagePrompts.map(p => generateImage(p, userApiKey));
       const results = await Promise.all(imagePromises);
       results.forEach(img => { if (img) generatedImages.push(img); });
       
@@ -116,7 +127,7 @@ export default function App() {
     } catch (error: any) {
       console.error(error);
       const detailedError = error.message || "An unexpected error occurred during generation.";
-      setErrorMsg(detailedError.includes("API key not valid") ? "The provided API key is invalid. Please check your .env file." : detailedError);
+      setErrorMsg(detailedError.includes("API key not valid") ? "The provided API key is invalid. Please check your settings." : detailedError);
       setStep(GenerationStep.ERROR);
       setProgress(0);
     }
@@ -130,14 +141,14 @@ export default function App() {
       setStep(GenerationStep.GENERATING_CODE);
       setProgress(20);
 
-      const { code, imagePrompts } = await modifySiteStructure(siteData.html, editPrompt);
+      const { code, imagePrompts } = await modifySiteStructure(siteData.html, editPrompt, userApiKey);
       setProgress(50);
 
       let finalCode = code;
       if (imagePrompts && imagePrompts.length > 0) {
         setStep(GenerationStep.GENERATING_IMAGES);
         const newImages: string[] = [];
-        const imagePromises = imagePrompts.map(p => generateImage(p));
+        const imagePromises = imagePrompts.map(p => generateImage(p, userApiKey));
         const results = await Promise.all(imagePromises);
         results.forEach(img => { if (img) newImages.push(img); });
 
@@ -156,7 +167,7 @@ export default function App() {
     } catch (error: any) {
       console.error(error);
       const detailedError = error.message || "An unexpected error occurred during modification.";
-      setErrorMsg(detailedError.includes("API key not valid") ? "The provided API key is invalid. Please check your .env file." : detailedError);
+      setErrorMsg(detailedError.includes("API key not valid") ? "The provided API key is invalid. Please check your settings." : detailedError);
       setStep(GenerationStep.ERROR);
       setProgress(0);
     }
@@ -210,6 +221,14 @@ export default function App() {
             <span className="hidden sm:inline">Projects</span>
           </button>
 
+          <button 
+            onClick={() => setShowSettings(true)}
+            className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-slate-50 rounded-lg transition-all"
+            title="API Settings"
+          >
+            <Settings className="w-5 h-5" />
+          </button>
+
           {siteData && (
             <div className="flex items-center gap-2 bg-slate-100 p-1 rounded-xl">
               <button 
@@ -237,6 +256,51 @@ export default function App() {
           )}
         </div>
       </header>
+
+      {/* Settings Modal */}
+      {showSettings && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-3xl w-full max-w-md shadow-2xl overflow-hidden border border-slate-100">
+            <div className="p-6 border-b flex justify-between items-center bg-slate-50/50">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-indigo-100 rounded-xl text-indigo-600">
+                  <Key className="w-5 h-5" />
+                </div>
+                <h3 className="font-black text-slate-900 uppercase tracking-tight text-lg">API Settings</h3>
+              </div>
+              <button onClick={() => setShowSettings(false)} className="text-slate-400 hover:text-slate-900 transition-colors">
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <div className="p-8">
+              <p className="text-sm text-slate-500 mb-6 leading-relaxed">
+                Enter your <span className="text-indigo-600 font-bold">Google Gemini API Key</span> to enable high-speed website generation. Your key is stored locally in your browser.
+              </p>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">Gemini API Key</label>
+                  <input 
+                    type="password"
+                    value={userApiKey}
+                    onChange={(e) => setUserApiKey(e.target.value)}
+                    placeholder="AIzaSy..."
+                    className="w-full p-4 border-2 border-slate-100 rounded-2xl bg-slate-50 text-sm font-mono focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 outline-none transition-all"
+                  />
+                </div>
+                <button 
+                  onClick={() => saveApiKey(userApiKey)}
+                  className="w-full bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-black text-sm uppercase tracking-widest transition-all shadow-xl shadow-indigo-100 active:scale-95"
+                >
+                  Save & Apply Key
+                </button>
+                <p className="text-[10px] text-center text-slate-400 mt-4">
+                  Don't have a key? Get one at <a href="https://aistudio.google.com/app/apikey" target="_blank" className="text-indigo-600 font-bold hover:underline">Google AI Studio</a>.
+                </p>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
 
       <main className="flex-1 flex flex-col md:flex-row overflow-hidden relative">
         {/* History Overlay */}
@@ -309,6 +373,14 @@ export default function App() {
                 >
                   <Wand2 className="w-5 h-5" /> Generate Magic
                 </button>
+                {!userApiKey && !process.env.API_KEY && (
+                  <div className="p-4 bg-amber-50 rounded-2xl border border-amber-100 flex gap-3 text-amber-700">
+                    <AlertCircle className="w-5 h-5 flex-shrink-0" />
+                    <p className="text-[10px] font-bold uppercase tracking-tight leading-relaxed">
+                      Missing API Key. Click the gear icon above to set your Gemini API Key.
+                    </p>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="space-y-6">

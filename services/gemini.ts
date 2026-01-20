@@ -3,11 +3,12 @@ import { SiteGenerationResult } from "../types";
 
 /**
  * Generates the initial website structure and content based on a text prompt.
- * Uses gemini-3-flash-preview for basic text and layout generation.
  */
-export const generateSiteStructure = async (prompt: string): Promise<SiteGenerationResult> => {
-  // Always use process.env.API_KEY directly in the constructor.
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+export const generateSiteStructure = async (prompt: string, apiKey?: string): Promise<SiteGenerationResult> => {
+  const effectiveKey = apiKey || process.env.API_KEY;
+  if (!effectiveKey) throw new Error("API Key is missing. Please set it in settings or .env file.");
+
+  const ai = new GoogleGenAI({ apiKey: effectiveKey });
   
   const response: GenerateContentResponse = await ai.models.generateContent({
     model: 'gemini-3-flash-preview',
@@ -37,17 +38,18 @@ export const generateSiteStructure = async (prompt: string): Promise<SiteGenerat
     }
   });
 
-  // response.text is a property, not a method.
   const data = JSON.parse(response.text || "{}");
   return data as SiteGenerationResult;
 };
 
 /**
  * Modifies existing website code based on user instructions.
- * Uses gemini-3-pro-preview for complex reasoning and coding tasks.
  */
-export const modifySiteStructure = async (currentCode: string, instruction: string): Promise<SiteGenerationResult> => {
-  const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+export const modifySiteStructure = async (currentCode: string, instruction: string, apiKey?: string): Promise<SiteGenerationResult> => {
+  const effectiveKey = apiKey || process.env.API_KEY;
+  if (!effectiveKey) throw new Error("API Key is missing. Please set it in settings or .env file.");
+
+  const ai = new GoogleGenAI({ apiKey: effectiveKey });
   
   const response: GenerateContentResponse = await ai.models.generateContent({
     model: 'gemini-3-pro-preview',
@@ -84,18 +86,19 @@ export const modifySiteStructure = async (currentCode: string, instruction: stri
     }
   });
 
-  // response.text is a property, not a method.
   const data = JSON.parse(response.text || "{}");
   return data as SiteGenerationResult;
 };
 
 /**
  * Generates an image based on a prompt.
- * Uses gemini-2.5-flash-image for standard image generation.
  */
-export const generateImage = async (prompt: string): Promise<string | null> => {
+export const generateImage = async (prompt: string, apiKey?: string): Promise<string | null> => {
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    const effectiveKey = apiKey || process.env.API_KEY;
+    if (!effectiveKey) throw new Error("API Key is missing.");
+
+    const ai = new GoogleGenAI({ apiKey: effectiveKey });
     const response: GenerateContentResponse = await ai.models.generateContent({
       model: 'gemini-2.5-flash-image',
       contents: {
@@ -108,7 +111,6 @@ export const generateImage = async (prompt: string): Promise<string | null> => {
       }
     });
 
-    // Iterate through candidates and parts to find the inline image data.
     const parts = response.candidates?.[0]?.content?.parts || [];
     for (const part of parts) {
       if (part.inlineData) {
@@ -118,7 +120,6 @@ export const generateImage = async (prompt: string): Promise<string | null> => {
     return null;
   } catch (error) {
     console.error("Image generation failed:", error);
-    // Fallback to placeholder if API fails
     return `https://picsum.photos/seed/${Math.random()}/1200/600`;
   }
 };
